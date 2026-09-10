@@ -21,11 +21,15 @@ openssl req -x509 -newkey rsa:2048 -keyout "$DIR/key.pem" -out "$DIR/cert.pem" \
   -addext "basicConstraints=critical,CA:false" \
   -addext "keyUsage=critical,digitalSignature" \
   -addext "extendedKeyUsage=critical,codeSigning" 2>/dev/null
+# SecKeychainItemImport reads neither OpenSSL 3's default AES/SHA-256 bundle
+# ("MAC verification failed") nor an empty password, so: old algorithms, and a
+# throwaway password that lives as long as the temporary file does.
 openssl pkcs12 -export -inkey "$DIR/key.pem" -in "$DIR/cert.pem" \
-  -out "$DIR/id.p12" -passout pass: -name "$NAME"
+  -out "$DIR/id.p12" -passout pass:annotated -name "$NAME" \
+  -keypbe PBE-SHA1-3DES -certpbe PBE-SHA1-3DES -macalg sha1
 
 KEYCHAIN="$HOME/Library/Keychains/login.keychain-db"
-security import "$DIR/id.p12" -k "$KEYCHAIN" -P "" -T /usr/bin/codesign -A
+security import "$DIR/id.p12" -k "$KEYCHAIN" -P annotated -T /usr/bin/codesign -A
 # codesign refuses a certificate it cannot build a trusted chain for.
 security add-trusted-cert -r trustRoot -p codeSign -k "$KEYCHAIN" "$DIR/cert.pem"
 
