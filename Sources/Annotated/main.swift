@@ -9,15 +9,26 @@ if CommandLine.arguments.contains("--self-check") {
 }
 
 // The one place that asks for Accessibility permission, so the request happens
-// when a person runs it and not on every login. It exits without becoming the
-// app: a second instance would register ⌥⌘A a second time and draw two
-// overlays. The system owns the dialog, so it outlives this process.
+// when a person runs it and not on every login. It never becomes the app: a
+// second instance would register ⌥⌘A twice and draw two overlays.
 if CommandLine.arguments.contains("--grant") {
-    let granted = MainActor.assumeIsolated { DoubleModifierTap.hasAccessibility(prompt: true) }
-    print(granted
-        ? "accessibility already granted"
-        : "grant Annotated in Privacy & Security > Accessibility, then restart it")
-    exit(0)
+    if MainActor.assumeIsolated({ DoubleModifierTap.hasAccessibility(prompt: true) }) {
+        print("accessibility already granted")
+        exit(0)
+    }
+    // The list in Privacy & Security only holds an app while a process of it is
+    // asking, so this waits rather than exiting on the prompt.
+    print("grant Annotated in Privacy & Security > Accessibility (waiting)")
+    let deadline = Date().addingTimeInterval(180)
+    while Date() < deadline {
+        RunLoop.main.run(until: Date().addingTimeInterval(1))
+        if MainActor.assumeIsolated({ DoubleModifierTap.hasAccessibility(prompt: false) }) {
+            print("granted — start Annotated and the double-tap works")
+            exit(0)
+        }
+    }
+    print("still not granted; run this again when ready")
+    exit(1)
 }
 
 private func loginItemStatus() -> String {
