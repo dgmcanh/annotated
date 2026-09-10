@@ -6,6 +6,10 @@ Annotated is a macOS screen-annotation app: a background process with no UI of i
 
 Closing is `esc`'s job alone. A double-tap while the canvas is already open clears the drawing rather than closing, so neither gesture can throw work away by accident: the clear is checkpointed and `⌘Z` brings it back.
 
+## Working in this repo
+
+Commit straight to `main`. No feature branches — this overrides the workspace rule about branching off the default branch.
+
 ## Commands
 
 | Command | Does |
