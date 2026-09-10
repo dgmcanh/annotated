@@ -19,6 +19,8 @@ Commit straight to `main`. No feature branches — this overrides the workspace 
 | `INSTALL=1 ./build.sh` | The same, then replaces `/Applications/Annotated.app`. |
 | `.build/release/Annotated --self-check` | The whole test suite. |
 | `Annotated.app/Contents/MacOS/Annotated --show` | Opens the canvas without the hot key. |
+| `./sign-identity.sh` | Creates the self-signed identity `build.sh` signs with. Run once per machine. |
+| `Annotated.app/Contents/MacOS/Annotated --grant` | Asks for Accessibility permission and exits. The only thing that asks. |
 
 There is no test target and no single-test command. Checks live in `selfCheck()` in `Sources/Annotated/Board.swift`, run by `--self-check`, and use `precondition` rather than `assert` so they still bite in a release build. `build.sh` runs them, so a failing check fails the build.
 
@@ -50,7 +52,8 @@ These are load-bearing and most were bugs first — `docs/testing/first-build.md
 - **`Freehand.swift` is a 1:1 port of perfect-freehand** with Excalidraw's options (`size = width * 4.25`, thinning 0.6, smoothing 0.5, streamline 0.5, easeOutSine, `last: true` when finished). Its output matches the npm package point for point on every stroke shape tested; changing the algorithm breaks that. Tapering and real pressure input are the two deliberately dropped features.
 - **The canvas is an `NSPanel` with `.nonactivatingPanel`, at level `.screenSaver`, with a background alpha of 1/255.** A plain `NSWindow` cannot hold key focus from a background app under macOS 14+ cooperative activation; `isFloatingPanel = true` silently resets `level` to `.floating`, which puts the canvas behind a full-screen app; and the window server does not hit-test a fully transparent window, so a `.clear` background passes every click through to the app underneath.
 - **Pointer input is AppKit, not SwiftUI.** `NSHostingView.hitTest` returns nil over transparent content, so `CanvasHostingView` overrides `hitTest` to claim every point. `.contentShape(Rectangle())` only fixes SwiftUI's internal gesture routing and is not enough.
-- **Two ways in, on purpose.** Double-tap `⌘` is `DoubleModifierTap`, which watches `flagsChanged` and so needs Accessibility permission; `⌥⌘A` is a Carbon hot key that needs none and keeps the app usable when that permission is refused. Carbon cannot express a bare-modifier tap, which is why both exist. The Accessibility grant follows the code signature, so ad-hoc rebuilds re-prompt.
+- **Two ways in, on purpose.** Double-tap `⌘` is `DoubleModifierTap`, which watches `flagsChanged` and so needs Accessibility permission; `⌥⌘A` is a Carbon hot key that needs none and keeps the app usable when that permission is refused. Carbon cannot express a bare-modifier tap, which is why both exist.
+- **Nothing asks for Accessibility permission except `--grant`.** The app launches at login, so a prompt at startup is a dialog on every boot; `applicationDidFinishLaunching` only checks. The grant follows the code signature, and an ad-hoc one's designated requirement is a cdhash that changes on every build, so `build.sh` signs with the identity from `sign-identity.sh` instead and the grant survives rebuilds.
 - **`esc` takes two presses within two seconds**, because it discards without saving. `OverlayController.handleEscape` holds the arming and the HUD says so between the two.
 - **The overlay's shortcuts are global hot keys, not window key handling** — registered while the canvas is up, released when it closes. Focus is not something this app can rely on holding.
 - **Activation policy stays `.accessory` throughout.** Switching to `.regular` to win focus puts an icon in the Dock for as long as the canvas is up.

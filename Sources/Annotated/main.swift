@@ -8,6 +8,18 @@ if CommandLine.arguments.contains("--self-check") {
     exit(0)
 }
 
+// The one place that asks for Accessibility permission, so the request happens
+// when a person runs it and not on every login. It exits without becoming the
+// app: a second instance would register ⌥⌘A a second time and draw two
+// overlays. The system owns the dialog, so it outlives this process.
+if CommandLine.arguments.contains("--grant") {
+    let granted = MainActor.assumeIsolated { DoubleModifierTap.hasAccessibility(prompt: true) }
+    print(granted
+        ? "accessibility already granted"
+        : "grant Annotated in Privacy & Security > Accessibility, then restart it")
+    exit(0)
+}
+
 private func loginItemStatus() -> String {
     switch SMAppService.mainApp.status {
     case .notRegistered: return "not registered"
@@ -50,7 +62,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // Double-tap ⌘ is the main way in. ⌥⌘A stays as a Carbon hot key so
         // the app is still usable when Accessibility permission is refused.
         doubleCommand = DoubleModifierTap { [overlay] in overlay.summonOrClear() }
-        let trusted = DoubleModifierTap.hasAccessibility(prompt: true)
+        // Never prompt here: the app starts at login, so an unanswered prompt
+        // would be a dialog on every boot. `--grant` asks, once.
+        let trusted = DoubleModifierTap.hasAccessibility(prompt: false)
         NSLog("annotated: double-command %@", trusted ? "armed" : "needs Accessibility permission")
         NSLog("annotated: hotkey %@", registered ? "registered" : "registration FAILED")
 
