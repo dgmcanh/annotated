@@ -1,0 +1,7 @@
+curvy    229 pts   max deviation 0.0000000000
+dot       44 pts   max deviation 0.0000000000
+dup       50 pts   max deviation 0.0000000000
+slow      54 pts   max deviation 0.0000000000
+three     48 pts   max deviation 0.0000000000
+two       52 pts   max deviation 0.0000000000
+zigzag  1110 pts   max deviation 0.0000000000

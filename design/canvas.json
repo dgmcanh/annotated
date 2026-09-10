@@ -1,0 +1,50 @@
+{
+  "artboards": [
+    {
+      "file": "Main.dc.html",
+      "x": 0,
+      "y": 0,
+      "w": 980,
+      "h": 860
+    },
+    {
+      "file": "DirectionA.dc.html",
+      "x": 0,
+      "y": 0,
+      "w": 980,
+      "h": 780,
+      "page": "page-2"
+    },
+    {
+      "file": "DirectionC.dc.html",
+      "x": 1060,
+      "y": 0,
+      "w": 980,
+      "h": 780,
+      "page": "page-2"
+    }
+  ],
+  "annotations": [
+    {
+      "id": "chosen",
+      "x": 0,
+      "y": -132,
+      "w": 700,
+      "text": "Direction B with your underline, traced as real freehand geometry.\nWeight 36 on the master, 54 on the small-size drawing."
+    }
+  ],
+  "pages": [
+    {
+      "id": "page-1",
+      "name": "Icon"
+    },
+    {
+      "id": "page-2",
+      "name": "Explored"
+    }
+  ],
+  "launch": {
+    "view": "canvas",
+    "page": "page-1"
+  }
+}

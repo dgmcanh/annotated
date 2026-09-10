@@ -1,0 +1,11 @@
+# Swift build products
+.build/
+
+# The assembled bundle — build.sh makes it
+Annotated.app/
+
+# The seeded design canvas: ~2 MB of editor payload, re-seeded from
+# design/*.dc.html + canvas.json
+design/annotated-app-icon.html
+
+.DS_Store

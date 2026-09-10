@@ -1,0 +1,61 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+Annotated is a macOS screen-annotation app: a background process with no UI of its own that opens a transparent drawing canvas over every display on `⌥⌘A`, and discards everything on `esc`.
+
+## Commands
+
+| Command | Does |
+| --- | --- |
+| `swift build` | Debug build. Swift 6.3 toolchain, macOS 14 deployment target, Swift 5 language mode (`swift-tools-version: 5.9` — Swift 6 strict concurrency would reject the AppKit globals). |
+| `./build.sh` | Release build, runs the self-check, assembles and signs `Annotated.app`. |
+| `INSTALL=1 ./build.sh` | The same, then replaces `/Applications/Annotated.app`. |
+| `.build/release/Annotated --self-check` | The whole test suite. |
+| `Annotated.app/Contents/MacOS/Annotated --show` | Opens the canvas without the hot key. |
+
+There is no test target and no single-test command. Checks live in `selfCheck()` in `Sources/Annotated/Board.swift`, run by `--self-check`, and use `precondition` rather than `assert` so they still bite in a release build. `build.sh` runs them, so a failing check fails the build.
+
+**Use `INSTALL=1` whenever a build should take effect.** `/Applications/Annotated.app` is the copy that owns the Login Item, and a plain `./build.sh` leaves it stale. Two copies from different paths both run and both register `⌥⌘A`, giving two overlays on one keypress — LaunchServices only de-duplicates within a bundle path.
+
+## Layout
+
+| Path | Holds |
+| --- | --- |
+| `Sources/Annotated/main.swift` | Entry point, `AppDelegate`, Login Item registration. |
+| `Sources/Annotated/Hotkeys.swift` | `HotkeyCenter`: Carbon hot key registration and release. |
+| `Sources/Annotated/Overlay.swift` | `OverlayWindow` (canvas), `HUDWindow`, `CanvasHostingView`, `OverlayController`. |
+| `Sources/Annotated/Board.swift` | Stroke model, snapshot undo, object eraser, hit test, `selfCheck()`. Ink colour and width default here. |
+| `Sources/Annotated/Freehand.swift` | Port of perfect-freehand. |
+| `Resources/Annotated.icns` | App icon, copied into the bundle by `build.sh`. |
+| `design/` | Icon sources: the design canvas artboards, `icon-full.svg` / `icon-small.svg`, and `render-icon.swift`, which rasterises an SVG to PNGs by snapshotting it in WebKit. Nothing here is built by `build.sh`. |
+| `docs/testing/` | Run records. |
+
+## Architecture
+
+One process, no window while idle. A Carbon hot key opens one `OverlayWindow` per `NSScreen`, each with its own `Board`, plus one `HUDWindow` per screen carrying the border and hint pill. `OverlayController` owns both sets and tears them down together.
+
+`Board` is the model and the only thing worth unit-checking: strokes, a snapshot undo stack, and an object eraser that removes whole strokes rather than pixels. `CanvasHostingView` converts AppKit mouse events into `beginInput` / `extendInput` / `endInput` calls on it; a SwiftUI `Canvas` renders `strokes` plus the in-progress `live` stroke.
+
+### Invariants
+
+These are load-bearing and most were bugs first — `docs/testing/first-build.md` holds the evidence for the window ones.
+
+- **`Freehand.swift` is a 1:1 port of perfect-freehand** with Excalidraw's options (`size = width * 4.25`, thinning 0.6, smoothing 0.5, streamline 0.5, easeOutSine, `last: true` when finished). Its output matches the npm package point for point on every stroke shape tested; changing the algorithm breaks that. Tapering and real pressure input are the two deliberately dropped features.
+- **The canvas is an `NSPanel` with `.nonactivatingPanel`, at level `.screenSaver`, with a background alpha of 1/255.** A plain `NSWindow` cannot hold key focus from a background app under macOS 14+ cooperative activation; `isFloatingPanel = true` silently resets `level` to `.floating`, which puts the canvas behind a full-screen app; and the window server does not hit-test a fully transparent window, so a `.clear` background passes every click through to the app underneath.
+- **Pointer input is AppKit, not SwiftUI.** `NSHostingView.hitTest` returns nil over transparent content, so `CanvasHostingView` overrides `hitTest` to claim every point. `.contentShape(Rectangle())` only fixes SwiftUI's internal gesture routing and is not enough.
+- **The overlay's shortcuts are global hot keys, not window key handling** — registered while the canvas is up, released when it closes. Focus is not something this app can rely on holding.
+- **Activation policy stays `.accessory` throughout.** Switching to `.regular` to win focus puts an icon in the Dock for as long as the canvas is up.
+- **The app never captures the screen.** The canvas is an ordinary on-screen window, so the system screenshot shortcuts already include the ink. There is no capture code and the app needs no Screen Recording permission — but the HUD's border and hint pill land in those screenshots too.
+- **Nothing is persisted.** No preferences, no drawing storage, no state across sessions.
+- **The Login Item registers only from `/Applications`**, so dev builds do not leave entries pointing at a build folder.
+- **`RegisterEventHotKey` returns `noErr` even when another app already owns the combination**, so a hot key conflict cannot be detected; the "could not register" alert only catches a registration the system itself rejects.
+
+## Verifying a change
+
+Synthetic mouse and key events need Accessibility permission, which this environment does not grant, so the hot key and the pointer cannot be driven end to end from a terminal here. Everything beneath them can: link the sources into a throwaway binary and call the real types directly — construct an `OverlayWindow`, send `NSEvent`s to its `contentView`, drive `Board`. `docs/artifacts/first-build/harness.swift` is that harness.
+
+Two failure modes have wasted time in this repo and are worth guarding against:
+
+- A shell one-liner where an early `cd` fails short-circuits the `&&` chain, so the edit never runs while a later command still reports success. Assert on the replacement text, not on the command exiting 0.
+- For anything involving the window server, log the specific event you care about. `mouseMoved` is delivered to the key window regardless of what is under the cursor, so it proves nothing about hit-testing; only `mouseDown` does.

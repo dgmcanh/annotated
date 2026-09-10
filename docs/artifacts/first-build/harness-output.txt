@@ -1,0 +1,19 @@
+PASS  C1 two drags commit two strokes  — strokes before=0 after=2
+PASS  C2 undo removes the last stroke  — strokes 2 -> 1
+PASS  C3 redo puts it back  — strokes 1 -> 2
+PASS  C4 one drag erases both strokes it touches  — strokes 2 -> 0
+PASS  C5 one undo restores the whole erase drag  — strokes 0 -> 2
+PASS  C6 an eraser drag that hits nothing takes no undo slot  — after a miss, one undo removed the drawn stroke: count=0
+PASS  C7 hit test bites inside the tolerance and not outside  — at 9.75px -> Optional(0), at 10.75px -> nil
+PASS  C8 esc registers as a global hot key  — token=Optional(1)
+PASS  C8 cmd-Z registers as a global hot key  — token=Optional(2)
+PASS  C8 shift-cmd-Z registers as a global hot key  — token=Optional(3)
+PASS  C8 shift-cmd-C registers as a global hot key  — token=Optional(4)
+PASS  C9 the overlay's hot keys can be handed back  — esc could be registered again after unregister
+PASS  C11 the canvas claims every point instead of letting clicks through  — hitTest returned Optional(<harness.CanvasHostingView: 0x100d701c0>)
+PASS  C12 a mouse drag on the view commits one stroke  — live during drag=31, strokes after=1, live after=0
+PASS  C13 window coordinates are flipped into canvas space  — a click 100 px below the top of the screen landed at canvas y=100.0
+PASS  C14 an option-drag erases and commits nothing  — strokes after the option-drag=0
+PASS  C15 the canvas takes the first click  — acceptsFirstMouse=true
+
+all cases passed

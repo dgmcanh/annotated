@@ -1,0 +1,14 @@
+$ open -a Annotated.app; pgrep -x Annotated
+pid=24100
+
+$ osascript -e 'tell application "System Events" to get name of every process whose visible is true' | grep -i annotated
+(no match - not a visible process)
+
+$ open -a Annotated.app twice
+instances=1
+
+$ two copies of the binary, checking hot key registration
+first copy:  annotated: hotkey registered
+second copy: annotated: hotkey registered
+
+instances left=0

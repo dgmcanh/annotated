@@ -1,0 +1,13 @@
+Timeline that identified the click-through bug. The overlay is up the whole
+time; the user moved the mouse, then clicked to draw.
+
+12:46:02.306 key window=1, app active=1          <- overlay shown, panel is key
+12:46:02.446 mouseMoved reached the canvas       <- mouse-moved goes to the KEY window,
+12:46:03.323 heartbeat key=1 active=1 level=1000    regardless of what is under the cursor
+12:46:06.429 mouseMoved reached the canvas
+12:46:07.322 heartbeat key=1 active=1 level=1000 visible=1 front=Annotated
+12:46:08.323 heartbeat key=0 active=0 level=1000 visible=1 front=Code
+12:46:13.324 heartbeat key=0 active=0 level=1000 visible=1 front=Code
+
+No mouseDown was ever logged. The click landed on Code and took focus with it,
+which is why esc stopped working afterwards.

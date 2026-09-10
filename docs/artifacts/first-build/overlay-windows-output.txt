@@ -1,0 +1,14 @@
+$ Annotated --show; CGWindowListCopyWindowInfo
+Annotated on-screen windows: 2
+  layer=2147483628 bounds={
+    Height = 1440;
+    Width = 2560;
+    X = 0;
+    Y = 0;
+}
+  layer=2147483628 bounds={
+    Height = 982;
+    Width = 1512;
+    X = "-1512";
+    Y = 506;
+}
