@@ -50,3 +50,66 @@ final class HotkeyCenter {
         handlers.removeValue(forKey: id)
     }
 }
+
+/// Double-tap of a bare modifier. Carbon hot keys need a key code, so this is
+/// the one thing that cannot go through `HotkeyCenter`: it watches
+/// `flagsChanged`, which means the app needs Accessibility permission.
+@MainActor
+final class DoubleModifierTap {
+    private let maxHold: TimeInterval = 0.35    // a tap, not a chord being held
+    private let maxGap: TimeInterval = 0.40     // between the two taps
+
+    private let handler: () -> Void
+    private var monitors: [Any] = []
+    private var pressedAt: TimeInterval?
+    private var lastTapAt: TimeInterval?
+    private var dirty = false                   // another key went down while ⌘ was held
+
+    init(handler: @escaping () -> Void) {
+        self.handler = handler
+        // A global monitor sees other apps; a local one sees our own windows.
+        monitors.append(NSEvent.addGlobalMonitorForEvents(matching: [.flagsChanged, .keyDown]) { [weak self] event in
+            MainActor.assumeIsolated { self?.handle(event) }
+        } as Any)
+        monitors.append(NSEvent.addLocalMonitorForEvents(matching: [.flagsChanged, .keyDown]) { [weak self] event in
+            MainActor.assumeIsolated { self?.handle(event) }
+            return event
+        } as Any)
+    }
+
+    private func handle(_ event: NSEvent) {
+        if event.type == .keyDown {
+            dirty = true
+            return
+        }
+        let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+        let onlyCommand = flags == .command
+        let now = event.timestamp
+
+        if onlyCommand {
+            pressedAt = now
+            dirty = false
+            return
+        }
+        guard flags.isEmpty, let down = pressedAt else {
+            pressedAt = nil
+            return
+        }
+        pressedAt = nil
+        guard !dirty, now - down <= maxHold else { return }
+
+        if let last = lastTapAt, now - last <= maxGap {
+            lastTapAt = nil
+            handler()
+        } else {
+            lastTapAt = now
+        }
+    }
+
+    /// True when the app may watch events. Passing `prompt` shows the system
+    /// dialog offering to open System Settings.
+    static func hasAccessibility(prompt: Bool) -> Bool {
+        let key = kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String
+        return AXIsProcessTrustedWithOptions([key: prompt] as CFDictionary)
+    }
+}

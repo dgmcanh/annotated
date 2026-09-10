@@ -77,7 +77,11 @@ final class CanvasHostingView: NSHostingView<BoardView> {
 struct HUDView: View {
     @ObservedObject var board: Board
 
-    private let hint = "Drag to Draw   ⌥ Drag to Erase   ⌘Z Undo   Esc Cancel"
+    private var hint: String {
+        board.confirmingExit
+            ? "Press Esc Again to Discard"
+            : "Drag to Draw   ⌥ Drag to Erase   ⌘Z Undo   ⌘⌘ Clear   Esc Esc Discard"
+    }
 
     var body: some View {
         ZStack(alignment: .bottom) {
@@ -167,10 +171,21 @@ final class OverlayController {
     private var windows: [OverlayWindow] = []
     private var huds: [HUDWindow] = []
     private var hotkeyTokens: [UInt32] = []
+    private var escArmed = false
+    private var escTimer: Timer?
 
     var isVisible: Bool { !windows.isEmpty }
 
-    func toggle() { isVisible ? dismiss() : show() }
+    /// Opens the canvas, or clears it if it is already open. Closing is esc's
+    /// job alone, so a stray double-tap cannot throw the drawing away.
+    func summonOrClear() {
+        guard isVisible else {
+            show()
+            return
+        }
+        disarmEscape()
+        windows.forEach { $0.board.clear() }   // checkpointed, so ⌘Z brings it back
+    }
 
     func show() {
         // Deliberately stays .accessory: switching to .regular puts an icon in
@@ -202,7 +217,7 @@ final class OverlayController {
         let center = HotkeyCenter.shared
         let cmd = UInt32(cmdKey), shift = UInt32(shiftKey)
         let keys: [(UInt32, UInt32, () -> Void)] = [
-            (UInt32(kVK_Escape), 0, { [weak self] in self?.dismiss() }),
+            (UInt32(kVK_Escape), 0, { [weak self] in self?.handleEscape() }),
             (UInt32(kVK_ANSI_Z), cmd, { [weak self] in self?.activeBoard?.undo() }),
             (UInt32(kVK_ANSI_Z), cmd | shift, { [weak self] in self?.activeBoard?.redo() }),
         ]
@@ -210,6 +225,34 @@ final class OverlayController {
         if hotkeyTokens.count < keys.count {
             NSLog("annotated: only %d of %d overlay hot keys registered", hotkeyTokens.count, keys.count)
         }
+    }
+
+    /// Esc discards everything, so it takes two presses. The first arms it for
+    /// two seconds and says so in the HUD; the second dismisses.
+    func handleEscape() {
+        if escArmed {
+            dismiss()
+            return
+        }
+        escArmed = true
+        windows.forEach { $0.board.confirmingExit = true }
+        escTimer?.invalidate()
+        escTimer = Timer.scheduledTimer(withTimeInterval: 2, repeats: false) { _ in
+            MainActor.assumeIsolated { self.disarmEscape() }
+        }
+    }
+
+    /// Whether the first esc has been seen. Read by the checks.
+    var armedForTest: Bool { escArmed }
+
+    /// The live canvases. Read by the checks.
+    var windowsForTest: [OverlayWindow] { windows }
+
+    private func disarmEscape() {
+        escArmed = false
+        escTimer?.invalidate()
+        escTimer = nil
+        windows.forEach { $0.board.confirmingExit = false }
     }
 
     /// The window under the pointer, which is the one the user is drawing on.
@@ -229,6 +272,7 @@ final class OverlayController {
         }
         windows.removeAll()
         huds.removeAll()
+        disarmEscape()
         hotkeyTokens.forEach(HotkeyCenter.shared.unregister)
         hotkeyTokens.removeAll()
         NSApp.hide(nil)

@@ -21,6 +21,9 @@ final class Board: ObservableObject {
     /// The stroke under the pointer right now, rebuilt every mouse event.
     @Published private(set) var live: [CGPoint] = []
 
+    /// Set between the first and second esc, so the HUD can say so.
+    @Published var confirmingExit = false
+
     var color: NSColor = .systemRed
     var width: CGFloat = 0.85
 
@@ -85,6 +88,14 @@ final class Board: ObservableObject {
     }
 
     func endErase() { eraseCheckpointed = false }
+
+    /// Wipes the canvas. Checkpointed, so undo brings it back; a no-op on an
+    /// empty board so it never eats an undo slot.
+    func clear() {
+        guard !strokes.isEmpty else { return }
+        checkpoint()
+        strokes.removeAll()
+    }
 
     func undo() {
         guard let previous = undoStack.popLast() else { return }

@@ -22,6 +22,7 @@ private func loginItemStatus() -> String {
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private let overlay = OverlayController()
     private var registered = false
+    private var doubleCommand: DoubleModifierTap?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         // Only an installed copy registers itself; dev builds would otherwise
@@ -39,13 +40,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         registered = HotkeyCenter.shared.register(keyCode: UInt32(kVK_ANSI_A),
                                                   modifiers: UInt32(optionKey | cmdKey)) { [overlay] in
-            overlay.toggle()
+            overlay.summonOrClear()
         } != nil
 
         // No UI means no other way to trigger the overlay for a test or when
         // the shortcut is taken: `Annotated.app/Contents/MacOS/Annotated --show`.
         if CommandLine.arguments.contains("--show") { overlay.show() }
 
+        // Double-tap ⌘ is the main way in. ⌥⌘A stays as a Carbon hot key so
+        // the app is still usable when Accessibility permission is refused.
+        doubleCommand = DoubleModifierTap { [overlay] in overlay.summonOrClear() }
+        let trusted = DoubleModifierTap.hasAccessibility(prompt: true)
+        NSLog("annotated: double-command %@", trusted ? "armed" : "needs Accessibility permission")
         NSLog("annotated: hotkey %@", registered ? "registered" : "registration FAILED")
 
         if !registered {

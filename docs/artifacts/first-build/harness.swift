@@ -93,16 +93,16 @@ MainActor.assumeIsolated {
     var tokens: [UInt32] = []
     for (name, code, mods) in [("esc", UInt32(kVK_Escape), UInt32(0)),
                                ("cmd-Z", UInt32(kVK_ANSI_Z), UInt32(cmdKey)),
-                               ("shift-cmd-Z", UInt32(kVK_ANSI_Z), UInt32(cmdKey | shiftKey)),
-                               ("shift-cmd-C", UInt32(kVK_ANSI_C), UInt32(cmdKey | shiftKey))] {
+                               ("shift-cmd-Z", UInt32(kVK_ANSI_Z), UInt32(cmdKey | shiftKey))] {
         let token = center.register(keyCode: code, modifiers: mods) { }
         check("C8 \(name) registers as a global hot key", token != nil, "token=\(String(describing: token))")
         if let token { tokens.append(token) }
     }
     tokens.forEach(center.unregister)
-    check("C9 the overlay's hot keys can be handed back",
-          center.register(keyCode: UInt32(kVK_Escape), modifiers: 0, handler: {}) != nil,
+    let reclaimed = center.register(keyCode: UInt32(kVK_Escape), modifiers: 0, handler: {})
+    check("C9 the overlay's hot keys can be handed back", reclaimed != nil,
           "esc could be registered again after unregister")
+    if let reclaimed { center.unregister(reclaimed) }   // leave esc free for the controller below
 
     // --- pointer input through the real AppKit view ------------------------
     let pointerWindow = OverlayWindow(screen: screen)      // a clean board for the pointer cases
@@ -141,6 +141,41 @@ MainActor.assumeIsolated {
           drawBoard.strokes.isEmpty, "strokes after the option-drag=\(drawBoard.strokes.count)")
 
     check("C15 the canvas takes the first click", view.acceptsFirstMouse(for: nil), "acceptsFirstMouse=\(view.acceptsFirstMouse(for: nil))")
+
+    // --- esc takes two presses ----------------------------------------------
+    let controller = OverlayController()
+    controller.show()
+    let shown = controller.isVisible
+    controller.handleEscape()
+    let afterFirst = controller.isVisible
+    controller.handleEscape()
+    let afterSecond = controller.isVisible
+    check("C16 one esc arms, the second dismisses",
+          shown && afterFirst && !afterSecond,
+          "visible after show=\(shown), after 1st esc=\(afterFirst), after 2nd=\(afterSecond)")
+
+    // double-tap while open clears, it does not close
+    controller.show()
+    let reopened = controller.isVisible
+    controller.windowsForTest.first?.board.commit(Stroke(points: wave(60, 100, 40), color: .systemRed, width: 2, finished: true))
+    let drawn = controller.windowsForTest.first?.board.strokes.count ?? 0
+    controller.summonOrClear()
+    let afterClear = controller.windowsForTest.first?.board.strokes.count ?? -1
+    let stillOpen = controller.isVisible
+    controller.windowsForTest.first?.board.undo()
+    let afterClearUndo = controller.windowsForTest.first?.board.strokes.count ?? -1
+    check("C18 double-tap clears the canvas and leaves it open",
+          reopened && drawn == 1 && afterClear == 0 && stillOpen,
+          "drawn=\(drawn), after clear=\(afterClear), still open=\(stillOpen)")
+    check("C19 the clear is undoable", afterClearUndo == 1, "strokes after undo=\(afterClearUndo)")
+
+    let armedHint = controller.armedForTest
+    controller.handleEscape()
+    let armedAfterEsc = controller.armedForTest
+    controller.dismiss()
+    check("C17 dismiss clears the armed state",
+          !armedHint && armedAfterEsc && !controller.armedForTest,
+          "armed before=\(armedHint), after esc=\(armedAfterEsc), after dismiss=\(controller.armedForTest)")
 
     pointerWindow.close()
     window.close()
