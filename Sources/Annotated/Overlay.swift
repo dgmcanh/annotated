@@ -213,6 +213,7 @@ final class OverlayController {
             (UInt32(kVK_Escape), 0, { [weak self] in self?.handleEscape() }),
             (UInt32(kVK_ANSI_Z), cmd, { [weak self] in self?.activeBoard?.undo() }),
             (UInt32(kVK_ANSI_Z), cmd | shift, { [weak self] in self?.activeBoard?.redo() }),
+            (UInt32(kVK_ANSI_Q), cmd, { NSApp.terminate(nil) }),
         ]
         hotkeyTokens = keys.compactMap { center.register(keyCode: $0.0, modifiers: $0.1, handler: $0.2) }
         if hotkeyTokens.count < keys.count {
