@@ -80,7 +80,7 @@ struct HUDView: View {
     private var hint: String {
         board.confirmingExit
             ? "Press Esc Again to Discard"
-            : "Drag to Draw   ⌥ Drag to Erase   ⌘Z Undo   ⌘⌘ Clear   Esc Esc Discard"
+            : "Drag to Draw   ⌥ Drag to Erase   ⌘Z Undo   ⌃⌃ Clear   Esc Esc Discard"
     }
 
     var body: some View {

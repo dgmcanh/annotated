@@ -6,7 +6,7 @@ Annotated has no window, no Dock icon and no menu bar item. It sits in the backg
 
 | Key | Does |
 | --- | --- |
-| double-tap `⌘` | Show the canvas — or clear it, if it is already open |
+| double-tap `⌃` | Show the canvas — or clear it, if it is already open |
 | `⌥⌘A` | The same, without needing Accessibility permission |
 | drag | Draw |
 | `⌥` + drag | Erase whole strokes you touch |
@@ -25,7 +25,7 @@ open /Applications/Annotated.app
 
 Launched from `/Applications`, the app registers itself as a Login Item. Remove it in System Settings → General → Login Items.
 
-Double-tap `⌘` needs Accessibility permission — watching for a bare modifier means watching every key event. macOS asks on first launch; grant it under System Settings → Privacy & Security → Accessibility. The grant is tied to the code signature, so an ad-hoc build asks again after every rebuild. Sign with a stable identity to keep it:
+Double-tap `⌃` needs Accessibility permission — watching for a bare modifier means watching every key event. macOS asks on first launch; grant it under System Settings → Privacy & Security → Accessibility. The grant is tied to the code signature, so an ad-hoc build asks again after every rebuild. Sign with a stable identity to keep it:
 
 ```sh
 CODESIGN_IDENTITY="Your Certificate Name" INSTALL=1 ./build.sh

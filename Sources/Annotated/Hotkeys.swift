@@ -63,7 +63,7 @@ final class DoubleModifierTap {
     private var monitors: [Any] = []
     private var pressedAt: TimeInterval?
     private var lastTapAt: TimeInterval?
-    private var dirty = false                   // another key went down while ⌘ was held
+    private var dirty = false                   // another key went down while ⌃ was held
 
     init(handler: @escaping () -> Void) {
         self.handler = handler
@@ -83,10 +83,10 @@ final class DoubleModifierTap {
             return
         }
         let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
-        let onlyCommand = flags == .command
+        let onlyControl = flags == .control
         let now = event.timestamp
 
-        if onlyCommand {
+        if onlyControl {
             pressedAt = now
             dirty = false
             return
