@@ -77,11 +77,7 @@ final class CanvasHostingView: NSHostingView<BoardView> {
 struct HUDView: View {
     @ObservedObject var board: Board
 
-    private var hint: String {
-        board.confirmingExit
-            ? "Press Esc Again to Discard"
-            : "Drag to Draw   ⌥ Drag to Erase   ⌘Z Undo   ⌃⌃ Clear   Esc Esc Discard"
-    }
+    private let hint = "Drag to Draw   ⌥ Drag to Erase   ⌘Z Undo   ⌃⌃ Clear   Esc Discard"
 
     var body: some View {
         ZStack(alignment: .bottom) {
@@ -171,8 +167,6 @@ final class OverlayController {
     private var windows: [OverlayWindow] = []
     private var huds: [HUDWindow] = []
     private var hotkeyTokens: [UInt32] = []
-    private var escArmed = false
-    private var escTimer: Timer?
 
     var isVisible: Bool { !windows.isEmpty }
 
@@ -183,7 +177,6 @@ final class OverlayController {
             show()
             return
         }
-        disarmEscape()
         windows.forEach { $0.board.clear() }   // checkpointed, so ⌘Z brings it back
     }
 
@@ -227,33 +220,11 @@ final class OverlayController {
         }
     }
 
-    /// Esc discards everything, so it takes two presses. The first arms it for
-    /// two seconds and says so in the HUD; the second dismisses.
-    func handleEscape() {
-        if escArmed {
-            dismiss()
-            return
-        }
-        escArmed = true
-        windows.forEach { $0.board.confirmingExit = true }
-        escTimer?.invalidate()
-        escTimer = Timer.scheduledTimer(withTimeInterval: 2, repeats: false) { _ in
-            MainActor.assumeIsolated { self.disarmEscape() }
-        }
-    }
-
-    /// Whether the first esc has been seen. Read by the checks.
-    var armedForTest: Bool { escArmed }
+    /// Esc discards everything and closes. One press.
+    func handleEscape() { dismiss() }
 
     /// The live canvases. Read by the checks.
     var windowsForTest: [OverlayWindow] { windows }
-
-    private func disarmEscape() {
-        escArmed = false
-        escTimer?.invalidate()
-        escTimer = nil
-        windows.forEach { $0.board.confirmingExit = false }
-    }
 
     /// The window under the pointer, which is the one the user is drawing on.
     private var activeWindow: OverlayWindow? {
@@ -272,7 +243,6 @@ final class OverlayController {
         }
         windows.removeAll()
         huds.removeAll()
-        disarmEscape()
         hotkeyTokens.forEach(HotkeyCenter.shared.unregister)
         hotkeyTokens.removeAll()
         NSApp.hide(nil)

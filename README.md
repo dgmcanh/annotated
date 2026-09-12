@@ -11,7 +11,7 @@ Annotated has no window, no Dock icon and no menu bar item. It sits in the backg
 | drag | Draw |
 | `⌥` + drag | Erase whole strokes you touch |
 | `⌘Z` / `⇧⌘Z` | Undo / redo |
-| `esc` `esc` | Close, discarding everything. Two presses, within two seconds — the only way out |
+| `esc` | Close, discarding everything — the only way out |
 
 Strokes use a Swift port of [perfect-freehand](https://github.com/steveruizok/perfect-freehand) with Excalidraw's settings.
 

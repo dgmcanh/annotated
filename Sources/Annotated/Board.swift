@@ -21,9 +21,6 @@ final class Board: ObservableObject {
     /// The stroke under the pointer right now, rebuilt every mouse event.
     @Published private(set) var live: [CGPoint] = []
 
-    /// Set between the first and second esc, so the HUD can say so.
-    @Published var confirmingExit = false
-
     var color: NSColor = .systemRed
     var width: CGFloat = 0.85
 

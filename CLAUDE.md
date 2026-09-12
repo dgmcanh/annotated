@@ -2,7 +2,7 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-Annotated is a macOS screen-annotation app: a background process with no UI of its own that opens a transparent drawing canvas over every display on a double-tap of `⌃`, and discards everything on two presses of `esc`.
+Annotated is a macOS screen-annotation app: a background process with no UI of its own that opens a transparent drawing canvas over every display on a double-tap of `⌃`, and discards everything on one press of `esc`.
 
 Closing is `esc`'s job alone. A double-tap while the canvas is already open clears the drawing rather than closing, so neither gesture can throw work away by accident: the clear is checkpointed and `⌘Z` brings it back.
 
@@ -54,7 +54,7 @@ These are load-bearing and most were bugs first — `docs/testing/first-build.md
 - **Pointer input is AppKit, not SwiftUI.** `NSHostingView.hitTest` returns nil over transparent content, so `CanvasHostingView` overrides `hitTest` to claim every point. `.contentShape(Rectangle())` only fixes SwiftUI's internal gesture routing and is not enough.
 - **Two ways in, on purpose.** Double-tap `⌃` is `DoubleModifierTap`, which watches `flagsChanged` and so needs Accessibility permission; `⌥⌘A` is a Carbon hot key that needs none and keeps the app usable when that permission is refused. Carbon cannot express a bare-modifier tap, which is why both exist.
 - **Nothing asks for Accessibility permission except `--grant`.** The app launches at login, so a prompt at startup is a dialog on every boot; `applicationDidFinishLaunching` only checks. Run `--grant` through `open`, never as a binary from a shell: TCC credits the request to the responsible process, so a shell launch asks on Terminal's behalf and Annotated never reaches the list. The grant follows the code signature, and an ad-hoc one's designated requirement is a cdhash that changes on every build, so `build.sh` signs with the identity from `sign-identity.sh` instead and the grant survives rebuilds.
-- **`esc` takes two presses within two seconds**, because it discards without saving. `OverlayController.handleEscape` holds the arming and the HUD says so between the two.
+- **`esc` closes on one press and discards everything.** There is no confirmation: the ink was never saved, so nothing is lost that was ever kept, and a double-tap `⌃` clears rather than closes, so the two gestures cannot be confused.
 - **The overlay's shortcuts are global hot keys, not window key handling** — registered while the canvas is up, released when it closes. Focus is not something this app can rely on holding.
 - **Activation policy stays `.accessory` throughout.** Switching to `.regular` to win focus puts an icon in the Dock for as long as the canvas is up.
 - **The app never captures the screen.** The canvas is an ordinary on-screen window, so the system screenshot shortcuts already include the ink. There is no capture code and the app needs no Screen Recording permission — but the HUD's border and hint pill land in those screenshots too.
