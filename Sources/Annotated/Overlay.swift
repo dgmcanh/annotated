@@ -56,6 +56,10 @@ final class CanvasHostingView: NSHostingView<BoardView> {
         return isFlipped ? point : CGPoint(x: point.x, y: bounds.height - point.y)
     }
 
+    var onScroll: ((NSEvent) -> Void)?
+
+    override func scrollWheel(with event: NSEvent) { onScroll?(event) }
+
     override func mouseDown(with event: NSEvent) {
         NSCursor.crosshair.set()
         NSEvent.isMouseCoalescingEnabled = false   // denser samples make smoother ink
@@ -137,7 +141,7 @@ final class OverlayWindow: NSPanel {
     override var canBecomeKey: Bool { true }
     override var canBecomeMain: Bool { true }
 
-    init(screen: NSScreen) {
+    init(screen: NSScreen, onScroll: @escaping (NSEvent) -> Void) {
         super.init(contentRect: screen.frame, styleMask: [.borderless, .nonactivatingPanel],
                    backing: .buffered, defer: false)
         level = .screenSaver                    // above the menu bar and the Dock
@@ -155,6 +159,7 @@ final class OverlayWindow: NSPanel {
         worksWhenModal = true
 
         let hosting = CanvasHostingView(board: board)
+        hosting.onScroll = onScroll
         hosting.frame = NSRect(origin: .zero, size: screen.frame.size)
         contentView = hosting
         setFrame(screen.frame, display: true)
@@ -187,7 +192,7 @@ final class OverlayController {
         // needs the app to be a regular one.
         let mouse = NSEvent.mouseLocation
         for screen in NSScreen.screens {
-            let window = OverlayWindow(screen: screen)
+            let window = OverlayWindow(screen: screen) { [weak self] in self?.scrollLanded($0) }
             window.orderFrontRegardless()
             if screen.frame.contains(mouse) { window.makeKeyAndOrderFront(nil) }
             windows.append(window)
@@ -201,6 +206,106 @@ final class OverlayController {
         }
         NSApp.activate(ignoringOtherApps: true)
         registerOverlayHotkeys()
+        installEventTap()
+    }
+
+    // MARK: - Scrolling through the canvas
+
+    // The canvas owns every click, so the wheel never reaches the app
+    // underneath. An event tap sees each scroll first and makes the canvas
+    // click-through while the wheel turns, then claims the pointer back.
+    // `ignoresMouseEvents` takes 5–60 ms to reach the window server and the
+    // event that flips it has already been routed, so both directions replay
+    // events: a scroll that still lands on the canvas, and a click that would
+    // otherwise land on the app.
+
+    private static let reposted: Int64 = 0x616e6e6f   // marks events this app posted itself
+    private var eventTap: CFMachPort?
+    private var claimBack: DispatchWorkItem?
+    private var heldClicks: [CGEvent]?
+
+    private var passesThrough = false {
+        didSet { windows.forEach { $0.ignoresMouseEvents = passesThrough } }
+    }
+
+    /// Without Accessibility permission there is no tap and the wheel stays on
+    /// the canvas, as it did before.
+    private func installEventTap() {
+        let types: [CGEventType] = [.scrollWheel, .leftMouseDown, .leftMouseDragged, .leftMouseUp]
+        let mask = types.reduce(CGEventMask(0)) { $0 | 1 << $1.rawValue }
+        guard let tap = CGEvent.tapCreate(
+            tap: .cghidEventTap, place: .headInsertEventTap, options: .defaultTap, eventsOfInterest: mask,
+            callback: { _, type, event, info in
+                let controller = Unmanaged<OverlayController>.fromOpaque(info!).takeUnretainedValue()
+                return MainActor.assumeIsolated { controller.filter(type, event) }
+            },
+            userInfo: Unmanaged.passUnretained(self).toOpaque()) else { return }
+        CFRunLoopAddSource(CFRunLoopGetMain(), CFMachPortCreateRunLoopSource(nil, tap, 0), .commonModes)
+        CGEvent.tapEnable(tap: tap, enable: true)
+        eventTap = tap
+    }
+
+    private func removeEventTap() {
+        guard let tap = eventTap else { return }
+        CGEvent.tapEnable(tap: tap, enable: false)
+        CFMachPortInvalidate(tap)
+        eventTap = nil
+        claimBack?.cancel()
+        heldClicks = nil
+        passesThrough = false
+    }
+
+    private func filter(_ type: CGEventType, _ event: CGEvent) -> Unmanaged<CGEvent>? {
+        let pass = Unmanaged.passUnretained(event)
+        if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
+            if let eventTap { CGEvent.tapEnable(tap: eventTap, enable: true) }
+            return pass
+        }
+        if event.getIntegerValueField(.eventSourceUserData) == Self.reposted { return pass }
+
+        if type == .scrollWheel {
+            passesThrough = true
+            claimBack?.cancel()
+            let work = DispatchWorkItem { [weak self] in self?.passesThrough = false }
+            claimBack = work
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.25, execute: work)
+            return pass
+        }
+
+        // A click while the canvas is still click-through: hold it and the
+        // drag behind it until the canvas owns the pointer again, then replay.
+        if heldClicks != nil {
+            event.copy().map { heldClicks?.append($0) }
+            return nil
+        }
+        guard passesThrough, type == .leftMouseDown, let copy = event.copy() else { return pass }
+        claimBack?.cancel()
+        passesThrough = false
+        heldClicks = [copy]
+        // 80 ms covers the slowest toggle measured; a click this soon after a scroll is rare.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) { [weak self] in
+            guard let self, let held = self.heldClicks else { return }
+            self.heldClicks = nil
+            held.forEach(Self.repost)
+        }
+        return nil
+    }
+
+    /// A scroll that reached the canvas before it turned click-through. Sent
+    /// again until it lands on the app, for half a second at most.
+    private func scrollLanded(_ event: NSEvent) {
+        guard passesThrough, ProcessInfo.processInfo.systemUptime - event.timestamp < 0.5,
+              let copy = event.cgEvent?.copy() else { return }
+        // Routing stamped the canvas into the copy; field 51 is the private
+        // target-window field, and left set the copy goes straight back to the
+        // canvas however long it waits. The two public fields are not enough.
+        copy.setIntegerValueField(CGEventField(rawValue: 51)!, value: 0)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.02) { Self.repost(copy) }
+    }
+
+    private static func repost(_ event: CGEvent) {
+        event.setIntegerValueField(.eventSourceUserData, value: reposted)
+        event.post(tap: .cghidEventTap)
     }
 
     /// While the canvas is up its shortcuts are global. A background app cannot
@@ -238,6 +343,7 @@ final class OverlayController {
 
     func dismiss() {
         guard !windows.isEmpty else { return }
+        removeEventTap()
         for window in windows + huds as [NSWindow] {
             window.orderOut(nil)
             window.close()

@@ -24,7 +24,7 @@ Commit straight to `main`. No feature branches — this overrides the workspace 
 
 There is no test target and no single-test command. Checks live in `selfCheck()` in `Sources/Annotated/Board.swift`, run by `--self-check`, and use `precondition` rather than `assert` so they still bite in a release build. `build.sh` runs them, so a failing check fails the build.
 
-**Use `INSTALL=1` whenever a build should take effect.** `/Applications/Annotated.app` is the copy that owns the Login Item, and a plain `./build.sh` leaves it stale. Two copies from different paths both run and both register `⌥⌘A`, giving two overlays on one keypress — LaunchServices only de-duplicates within a bundle path.
+**Use `INSTALL=1` whenever a build should take effect.** `/Applications/Annotated.app` is the copy that owns the Login Item, and a plain `./build.sh` leaves it stale. Two copies from different paths both run and both register `⌥⌘A`, giving two overlays on one keypress — LaunchServices only de-duplicates within a bundle path. `INSTALL=1` replaces the bundle but leaves the running copy on the old code: quit it and `open -a /Applications/Annotated.app` before trying the change.
 
 ## Layout
 
@@ -58,13 +58,14 @@ These are load-bearing and most were bugs first — `docs/testing/first-build.md
 - **The overlay's shortcuts are global hot keys, not window key handling** — registered while the canvas is up, released when it closes. Focus is not something this app can rely on holding.
 - **Activation policy stays `.accessory` throughout.** Switching to `.regular` to win focus puts an icon in the Dock for as long as the canvas is up.
 - **The app never captures the screen.** The canvas is an ordinary on-screen window, so the system screenshot shortcuts already include the ink. There is no capture code and the app needs no Screen Recording permission — but the HUD's border and hint pill land in those screenshots too.
+- **Scrolling passes through the canvas through an event tap** (`OverlayController.filter`), so it needs Accessibility; without the permission the wheel stays on the canvas. Each scroll makes the canvases `ignoresMouseEvents` until 250 ms after the last one. The ink stays where it was drawn on screen; making it follow the content was tried and dropped. The toggle lands 5–60 ms late, so a scroll that still hits the canvas is re-posted with private field 51 (the target window) cleared, and a click while it is still click-through is held and replayed after 80 ms. `docs/testing/scroll-through.md` holds the evidence.
 - **Nothing is persisted.** No preferences, no drawing storage, no state across sessions.
 - **The Login Item registers only from `/Applications`**, so dev builds do not leave entries pointing at a build folder.
 - **`RegisterEventHotKey` returns `noErr` even when another app already owns the combination**, so a hot key conflict cannot be detected; the "could not register" alert only catches a registration the system itself rejects.
 
 ## Verifying a change
 
-Synthetic mouse and key events need Accessibility permission, which this environment does not grant, so the hot key and the pointer cannot be driven end to end from a terminal here. Everything beneath them can: link the sources into a throwaway binary and call the real types directly — construct an `OverlayWindow`, send `NSEvent`s to its `contentView`, drive `Board`. `docs/artifacts/first-build/harness.swift` is that harness.
+Synthetic mouse and key events need Accessibility permission for the terminal. Where it is granted, `.build/debug/Annotated --show` can be driven end to end with events posted at `kCGHIDEventTap`; `docs/artifacts/scroll-through/drive.swift` does that. Where it is not, everything beneath the hot key and the pointer can still be driven: link the sources into a throwaway binary and call the real types directly — construct an `OverlayWindow`, send `NSEvent`s to its `contentView`, drive `Board`. `docs/artifacts/first-build/harness.swift` is that harness.
 
 Two failure modes have wasted time in this repo and are worth guarding against:
 
