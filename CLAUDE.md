@@ -36,7 +36,7 @@ There is no test target and no single-test command. Checks live in `selfCheck()`
 | `Sources/Annotated/Board.swift` | Stroke model, snapshot undo, object eraser, hit test, `selfCheck()`. Ink colour and width default here. |
 | `Sources/Annotated/Freehand.swift` | Port of perfect-freehand. |
 | `Resources/Annotated.icns` | App icon, copied into the bundle by `build.sh`. |
-| `design/` | Icon sources: the design canvas artboards, `icon-full.svg` / `icon-small.svg`, and `render-icon.swift`, which rasterises an SVG to PNGs by snapshotting it in WebKit. Nothing here is built by `build.sh`. |
+| `design/` | Icon sources: the design canvas artboards, `icon-full.svg` / `icon-small.svg`, and `render-icon.swift`, which rasterises an SVG to PNGs by snapshotting it in WebKit. Nothing here is built by `build.sh`. The icon sits on Apple's grid — an 824 px continuous-corner shape centred on the 1024 canvas — because macOS draws its own rim on that shape, and full-bleed art shows the rim as a broken line inside the edge. `icon-small.svg` is the 16 and 32 px art. |
 | `docs/testing/` | Run records. |
 
 ## Architecture
