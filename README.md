@@ -25,11 +25,7 @@ open /Applications/Annotated.app
 
 Launched from `/Applications`, the app registers itself as a Login Item. Remove it in System Settings → General → Login Items.
 
-Double-tap `⌃` needs Accessibility permission — watching for a bare modifier means watching every key event. macOS asks on first launch; grant it under System Settings → Privacy & Security → Accessibility. The grant is tied to the code signature, so an ad-hoc build asks again after every rebuild. Sign with a stable identity to keep it:
-
-```sh
-CODESIGN_IDENTITY="Your Certificate Name" INSTALL=1 ./build.sh
-```
+Double-tap `⌃` needs Accessibility permission — watching for a bare modifier means watching every key event. macOS asks on first launch; grant it under System Settings → Privacy & Security → Accessibility. The grant is tied to the code signature, so an ad-hoc build asks again after every rebuild. `build.sh` signs with the Apple Development identity `Apple Development: dgmcanh@gmail.com (Q8H8R447HB)` when the login keychain holds it, so the grant survives rebuilds. To make the identity on a new Mac: Xcode, Settings, Accounts, Manage Certificates, `+`, Apple Development. A Mac missing Apple's intermediate also needs `AppleWWDRCAG3.cer` from https://www.apple.com/certificateauthority/ in the login keychain. Another identity: `CODESIGN_IDENTITY="Your Certificate Name" INSTALL=1 ./build.sh`.
 
 `⌥⌘A` is a Carbon hot key and needs no permission, so the app still works if you refuse.
 
